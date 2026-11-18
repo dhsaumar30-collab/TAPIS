@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TAPIS: Prototipe Interaktif</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<style>
+:root{--bg:#E6ECEE;--fg:#0B1F26;--mut:#3F5159;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0A1317;--fg:#E8F0F2;--mut:#A9BAC0}}
+:root[data-theme="dark"]{--bg:#0A1317;--fg:#E8F0F2;--mut:#A9BAC0}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.phone{width:min(390px,100%);height:min(844px,calc(100dvh - 120px));min-height:640px;border:8px solid #0B0F12;border-radius:44px;background:#F3F6F6;color:#0B1F26;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.phone button{cursor:pointer}
+.phone button:focus-visible,.phone input:focus-visible,.out:focus-visible{outline:3px solid #F5B335;outline-offset:2px}
+@keyframes vb{0%,100%{height:15%}50%{height:100%}}
+.vb{animation:vb .9s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){.vb{animation:none;height:60%}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useEffect}=React,h=React.createElement;
+const isP=x=>x&&typeof x==='object'&&!x.$$typeof&&!Array.isArray(x);
+const T=t=>(c,...k)=>{let p={className:c};if(isP(k[0]))p={...p,...k.shift()};return h(t,p,...k)};
+const D=T('div'),S=T('span'),B=T('button'),P=T('p'),H=T('h2'),I=T('input');
+const say=x=>{try{speechSynthesis.cancel();if(x){const u=new SpeechSynthesisUtterance(x);u.lang='id-ID';speechSynthesis.speak(u)}}catch(e){}};
+const rp=n=>'Rp'+n.toLocaleString('id-ID');
+const ANS='Tidak, Bu. QRIS warung kecil tidak dipotong pajak. Terima aja seperti biasa.';
+const M=[
+{t:'INFO PENTING: Mulai besok semua transaksi QRIS warung langsung dipotong pajak 10%!',ok:0,
+ plain:'Tenang. QRIS warung kecil tidak dipotong pajak 10%. Terima QRIS seperti biasa.',
+ full:'Untuk kategori Warung Mikro (Omzet < Rp500 Juta/Tahun), transaksi QRIS tetap bebas PPh Final dan MDR 0% hingga Rp500.000. Tetap terima pembayaran QRIS seperti biasa.',
+ voice:'Bu, Pak, tenang ya. Kabar itu bohong. QRIS warung kecil nggak dipotong pajak sepuluh persen. Jualan pakai QRIS tetap aman, terima aja kayak biasa.',
+ src:[['pajak.go.id','Tidak ada potongan 10% untuk QRIS'],['bi.go.id','MDR 0% usaha mikro hingga Rp500.000']]},
+{t:'Warung omzet di bawah Rp500 juta setahun memang tidak bayar pajak penghasilan.',ok:1,
+ plain:'Benar. Omzet setahun di bawah 500 juta tidak bayar pajak penghasilan. Tetap catat omzetmu ya.',
+ full:'Wajib Pajak orang pribadi dengan omzet di bawah Rp500 Juta/Tahun tidak dikenai PPh Final 0,5%. Catat omzet harian untuk memantau batas.',
+ voice:'Kabar ini benar, Bu, Pak. Omzet warung di bawah lima ratus juta setahun nggak bayar pajak penghasilan. Tapi tetap dicatat ya, biar tahu kapan mendekati batas.',
+ src:[['pajak.go.id','PP 55/2022: batas omzet Rp500 juta'],['bi.go.id','Panduan QRIS untuk usaha mikro']]}];
+
+const Viz=(o,c='bg-white')=>D('flex items-end justify-center gap-1 h-9 mt-2',...Array.from({length:18},(_,i)=>D('w-1.5 rounded-full '+c+(o?' vb':''),{key:i,style:{height:o?undefined:(25+(i*41)%55)+'%',animationDelay:(i*60)+'ms'}})));
+const Card=(t,...k)=>D('rounded-2xl bg-white border border-slate-300 p-4',P('font-extrabold text-base mb-2',t),...k);
+
+function App(){
+const [mode,setMode]=useState('A'),[scr,setScr]=useState('home'),[sh,setSh]=useState(null),[ld,setLd]=useState(false),[off,setOff]=useState(false),[more,setMore]=useState(false),[sent,setSent]=useState(false),[t,setT]=useState(0),[on,setOn]=useState(false),[mic,setMic]=useState(0),[omz,setOmz]=useState(30),[rep,setRep]=useState(false);
+const A=mode==='A';
+useEffect(()=>{if(!on)return;const id=setInterval(()=>setT(x=>x+.25),250);return()=>clearInterval(id)},[on]);
+useEffect(()=>{if(t>=15){say();setOn(false);setT(0)}},[t]);
+const stop=()=>{say();setOn(false);setT(0)};
+const open=i=>{stop();setSh(i);setMore(false);setSent(false);setLd(true);setTimeout(()=>setLd(false),off?300:900)};
+const close=()=>{stop();setSh(null)};
+const go=s=>{stop();setSh(null);setScr(s)};
+const play=()=>{if(on)stop();else{say(M[sh].voice);setOn(true)}};
+const ask=()=>{setMic(1);setTimeout(()=>{setMic(2);say(ANS)},2200)};
+
+const Top=()=>D('',
+ D('flex justify-between px-6 pt-2 pb-1 text-xs font-bold bg-[#0F4C5C] text-white',S('','09:41'),S('',off?'Tanpa sinyal':'▂▄▆ 4G')),
+ D('flex items-center gap-2 px-3 pb-2 bg-[#0F4C5C] text-white',S('font-extrabold text-base','🛡️ TAPIS'),
+  D('flex ml-auto rounded-full bg-white/15 p-1',...['A','B'].map(m=>B('px-3 min-h-[48px] rounded-full text-xs font-extrabold '+(mode===m?'bg-white text-[#0F4C5C]':'text-white'),{key:m,'aria-pressed':mode===m,onClick:()=>setMode(m)},m==='A'?'A Warung Mikro':'B Naik Kelas')))),
+ D('px-3 py-1.5 text-xs font-bold '+(off?'bg-amber-300 text-slate-900':'bg-emerald-100 text-emerald-900'),off?'📵 Tanpa sinyal. 12 ringkasan regulasi tetap bisa dibaca dari HP.':'📥 12 ringkasan regulasi tersimpan offline, diperbarui 2 jam lalu.'));
+
+const Aud=m=>D('rounded-2xl bg-[#0F4C5C] text-white p-3',
+ D('flex items-center gap-3',B('shrink-0 min-h-[56px] min-w-[56px] rounded-full bg-amber-400 text-slate-900 text-2xl font-extrabold',{onClick:play,'aria-label':on?'Berhenti':'Putar ringkasan suara 15 detik'},on?'■':'▶'),
+  D('flex-1',P(A?'text-lg font-extrabold':'text-sm font-bold','🔊 Dengarkan 15 detik'),D('h-2 rounded-full bg-white/25 mt-1',D('h-2 rounded-full bg-amber-400',{style:{width:(t/15*100)+'%'}})))),
+ Viz(on),
+ on&&P('text-sm mt-2 leading-snug',m.voice));
+
+const Sheet=()=>{const m=M[sh],bad=!m.ok;
+return D('absolute inset-0 flex flex-col justify-end bg-black/50',
+ B('flex-1 w-full',{'aria-label':'Tutup hasil',onClick:close}),
+ D('rounded-t-3xl bg-white max-h-[80%] overflow-y-auto p-4 space-y-3',{role:'dialog','aria-label':'Hasil saringan TAPIS'},
+  D('mx-auto h-1.5 w-12 rounded-full bg-slate-300'),
+  ld?D('py-10 text-center',P('text-4xl animate-pulse','🔎'),P('text-lg font-bold',off?'Membaca simpanan di HP…':'Mengecek sumber resmi…')):
+  D('space-y-3',
+   D('flex items-center gap-3 rounded-2xl px-4 py-3 text-white '+(bad?'bg-red-800':'bg-green-800'),S('text-5xl',bad?'🚫':'✅'),P('font-extrabold leading-tight '+(A?'text-3xl':'text-2xl'),bad?'HOAKS / TIDAK BENAR':'AMAN UNTUK TOKOMU')),
+   D('rounded-2xl bg-slate-100 p-3',
+    P('text-xs font-bold text-slate-700',A?'🏪 Untuk warung kecil seperti punyamu':'🏪 Profil usaha: Warung Mikro, omzet di bawah Rp500 juta/tahun'),
+    P((A?'text-xl':'text-[15px]')+' font-bold leading-snug mt-1',A?m.plain:m.full),
+    A&&B('mt-2 min-h-[48px] text-sm font-bold underline text-[#0F4C5C]',{onClick:()=>setMore(!more)},more?'Tutup penjelasan lengkap ▴':'Lihat penjelasan lengkap ▾'),
+    A&&more&&P('text-sm mt-1',m.full)),
+   Aud(m),
+   !A&&D('rounded-2xl border border-slate-300 p-3 text-sm',P('font-bold mb-1','Bandingkan sumber resmi'),...m.src.map((s,i)=>D('flex gap-2 py-1',{key:i},S('font-bold shrink-0',s[0]),S('',s[1])))),
+   P('text-xs font-bold '+(off?'text-amber-800':'text-emerald-800'),off?'📥 Jawaban dari simpanan di HP. Tetap jalan tanpa sinyal.':'✅ Dicek ke sumber resmi barusan. Salinan disimpan di HP.'),
+   D('flex gap-2',B('flex-1 min-h-[56px] rounded-2xl bg-[#0F4C5C] text-white font-extrabold text-sm px-2',{onClick:()=>setSent(true),disabled:sent},sent?'✅ Terkirim ke grup':'📤 Kirim klarifikasi ke grup'),B('min-h-[56px] px-5 rounded-2xl border-2 border-slate-400 font-bold text-sm',{onClick:close},'Tutup')))))};
+
+const Wa=()=>D('flex-1 flex flex-col min-h-0 bg-[#E7DFD3] relative',
+ D('flex items-center gap-1 bg-[#075E54] text-white pr-3',B('min-h-[48px] min-w-[48px] text-2xl',{'aria-label':'Kembali ke beranda TAPIS',onClick:()=>go('home')},'←'),D('',P('font-bold text-sm leading-tight','Grup Pedagang Pasar Baru'),P('text-xs opacity-90','Bu Ani, Pak Joko, Kamu'))),
+ D('flex-1 overflow-y-auto p-3 space-y-3',
+  ...M.map((m,i)=>D('max-w-[88%] rounded-xl rounded-tl-none bg-white p-3 shadow-sm',{key:i},
+   P('text-xs text-slate-600 mb-1',i?'Pak Joko':'↪ Diteruskan berkali-kali'),
+   P('text-[15px] leading-snug font-semibold',m.t),
+   B('mt-3 w-full min-h-[48px] rounded-xl bg-[#0F4C5C] text-white font-extrabold text-sm',{onClick:()=>open(i)},'🛡️ Bagikan ke TAPIS'))),
+  D('max-w-[88%] rounded-xl rounded-tl-none bg-white p-3 shadow-sm',{key:'l'},P('text-xs text-slate-600 mb-1','Bu Ani'),P('text-[15px] leading-snug','Cair Rp2 juta buat pemilik warung! Daftar sebelum ditutup 👉'),B('text-[15px] text-blue-700 underline break-all text-left min-h-[48px]',{onClick:()=>go('phish')},'https://daftar-blt-umkm-2026.xyz'))),
+ D('bg-[#F0F0F0] px-3 py-2 text-xs text-slate-700','Ketuk “Bagikan ke TAPIS” di pesan, atau ketuk tautan biru.'),
+ sh!==null&&Sheet());
+
+const HomeA=()=>D('flex-1 overflow-y-auto p-4 space-y-4',
+ D('',H('text-3xl font-extrabold leading-tight','Halo, Bu Sari 👋'),P('text-lg mt-1','Ada kabar yang bikin ragu? Kita saring bareng.')),
+ B('w-full min-h-[104px] rounded-3xl bg-[#0F4C5C] text-white flex items-center gap-4 px-5 text-left text-2xl font-extrabold',{onClick:()=>go('wa')},S('text-5xl','💬'),'Cek pesan WhatsApp'),
+ B('w-full min-h-[104px] rounded-3xl bg-amber-400 text-slate-900 flex items-center gap-4 px-5 text-left text-2xl font-extrabold',{onClick:mic===1?undefined:ask},S('text-5xl','🎤'),mic===1?'Mendengarkan…':'Tanya pakai suara'),
+ mic>0&&D('rounded-3xl border-4 bg-white p-4 '+(mic===1?'border-amber-400':'border-green-800'),mic===1?Viz(true,'bg-[#0F4C5C]'):D('',P('text-sm text-slate-600','Kamu tanya: “Apa QRIS kena pajak?”'),P('text-xl font-extrabold mt-1','✅ '+ANS))),
+ D('grid grid-cols-2 gap-3 text-center font-extrabold text-lg',D('rounded-2xl bg-red-800 text-white py-4','🚫 Hoaks'),D('rounded-2xl bg-green-800 text-white py-4','✅ Aman')),
+ P('text-center text-sm text-slate-700','Merah: jangan dipercaya. Hijau: aman untuk tokomu.'));
+
+const an=omz*12,col=an>500?'bg-red-700':an>400?'bg-amber-500':'bg-green-700',tax=Math.max(0,an-500)*5000;
+const row=(a,b,w)=>(r,i)=>D('flex gap-3 py-2 border-t first:border-0 border-slate-200',{key:i},S(w+' shrink-0 font-bold text-[#0F4C5C]',r[0]),S('',r[1]));
+const HomeB=()=>D('flex-1 overflow-y-auto p-4 space-y-3 text-sm',
+ Card('Kalkulator batas omzet bebas pajak',
+  P('text-slate-700','Omzet per bulan: '+rp(omz*1e6)),
+  I('w-full h-12 accent-[#0F4C5C]',{type:'range',min:0,max:100,value:omz,onChange:e=>setOmz(+e.target.value),'aria-label':'Omzet per bulan dalam juta rupiah'}),
+  D('h-3 rounded-full bg-slate-200 overflow-hidden',D('h-3 '+col,{style:{width:Math.min(100,an/5)+'%'}})),
+  P('mt-2 font-bold','Setahun sekitar '+rp(an*1e6)+' dari batas Rp500.000.000'),
+  P('font-bold '+(an>500?'text-red-800':'text-green-800'),an>500?'⚠️ Lewat batas. Perkiraan PPh Final 0,5% atas selisih: '+rp(tax):'✅ Di bawah batas. Belum kena PPh Final.')),
+ Card('Kalender kepatuhan (contoh)',...[['15 Des','Cek omzet kumulatif 2026 terhadap batas Rp500 juta'],['Tiap tanggal 15','Setor PPh Final 0,5% bila omzet lewat batas'],['31 Mar 2027','Lapor SPT Tahunan orang pribadi']].map(row(0,0,'w-24'))),
+ Card('Bandingkan sumber untuk pesan pajak 10%',...[['Pesan WhatsApp','❌ Tanpa rujukan resmi'],['pajak.go.id (DJP)','✅ Tidak ada potongan 10% di QRIS'],['bi.go.id (BI)','✅ MDR 0% usaha mikro hingga Rp500.000']].map(row(0,0,'w-32'))),
+ B('w-full min-h-[56px] rounded-2xl bg-[#0F4C5C] text-white font-extrabold',{onClick:()=>go('wa')},'💬 Coba cek pesan WhatsApp'),
+ P('text-xs text-slate-600','Isi regulasi di prototipe adalah contoh. Verifikasi ke sumber resmi sebelum dipakai.'));
+
+const Ph=()=>D('flex-1 flex flex-col bg-red-900 text-white overflow-y-auto',
+ D('flex justify-between px-6 pt-2 text-xs font-bold',S('','09:41'),S('','▂▄▆ 4G')),
+ D('flex flex-col flex-1 p-5 gap-3',
+ S('self-start rounded-full bg-black/35 px-3 py-1 text-xs font-bold','TAPIS mencegat sebelum browser terbuka'),
+ D('text-center',P('text-7xl','⛔'),H('text-4xl font-extrabold leading-tight','Jangan dibuka!'),P('text-lg mt-1','Ini tautan penipuan berkedok bantuan BLT UMKM.')),
+ D('rounded-2xl bg-black/35 p-3 font-mono text-sm break-all','https://daftar-blt-umkm-2026.xyz'),
+ D('space-y-2 '+(A?'text-lg font-bold':'text-sm'),...(A?['❌ Pemerintah tidak pernah minta daftar bantuan lewat tautan WhatsApp.','❌ Bisa mencuri data dan uang di rekeningmu.']:['❌ Domain .xyz baru, meniru program BLT/KUR resmi.','❌ Meminta NIK, PIN, atau kode OTP lewat formulir.','❌ Tidak terdaftar di situs resmi pemerintah.','✅ Daftar bantuan hanya lewat kanal resmi instansi.']).map((x,i)=>P('',{key:i},x))),
+ B('mt-auto min-h-[64px] rounded-2xl bg-white text-red-900 text-xl font-extrabold',{onClick:()=>go('wa')},'⬅ Kembali ke WhatsApp'),
+ B('min-h-[48px] rounded-2xl border-2 border-white font-bold',{onClick:()=>setRep(true)},rep?'✅ Terima kasih, tautan dilaporkan':'🚩 Laporkan tautan ini')));
+
+const Nav=()=>D('flex border-t border-slate-300 bg-white',...[['home','🛡️','Beranda'],['wa','💬','Demo WhatsApp']].map(n=>B('flex-1 min-h-[60px] flex flex-col items-center justify-center text-xs font-bold '+(scr===n[0]?'text-[#0F4C5C] border-t-4 border-[#0F4C5C]':'text-slate-600'),{key:n[0],'aria-current':scr===n[0]?'page':undefined,onClick:()=>go(n[0])},S('text-xl',n[1]),n[2])));
+
+return D('min-h-screen flex flex-col items-center justify-center gap-3 p-3',
+ P('text-sm text-center max-w-sm',{style:{color:'var(--mut)'}},'Prototipe TAPIS. Mulai dari Demo WhatsApp: ketuk “Bagikan ke TAPIS” atau tautan biru. Ganti mode A/B di atas layar.'),
+ D('phone',scr==='phish'?Ph():h(React.Fragment,null,Top(),scr==='home'?(A?HomeA():HomeB()):Wa(),Nav())),
+ B('out rounded-full px-5 min-h-[48px] text-sm font-bold border-2',{style:{borderColor:'var(--fg)'},onClick:()=>setOff(!off)},off?'📶 Kembalikan sinyal':'📵 Simulasikan sinyal putus'));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
